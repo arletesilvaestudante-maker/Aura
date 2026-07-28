@@ -2543,7 +2543,7 @@
                         type="button"
                         class="profile-button active"
                         id="operatorProfile"
-                        onclick="selectLoginProfile(&#x27;operador&#x27;)"
+                        onclick="selectLoginProfile('operador')"
                     >
                         <i class="fa-solid fa-user"></i>
                         OPERADOR
@@ -2553,7 +2553,7 @@
                         type="button"
                         class="profile-button"
                         id="masterProfile"
-                        onclick="selectLoginProfile(&#x27;master&#x27;)"
+                        onclick="selectLoginProfile('master')"
                     >
                         <i class="fa-solid fa-user-tie"></i>
                         MASTER
@@ -2563,7 +2563,7 @@
                         type="button"
                         class="profile-button"
                         id="adminProfile"
-                        onclick="selectLoginProfile(&#x27;admin&#x27;)"
+                        onclick="selectLoginProfile('admin')"
                     >
                         <i class="fa-solid fa-crown"></i>
                         ADMIN
@@ -2907,7 +2907,7 @@
                 <button
                     type="button"
                     class="header-notification-button"
-                    onclick="openTab(&#x27;alerts&#x27;)"
+                    onclick="openTab('alerts')"
                 >
                     <i class="fa-solid fa-bell"></i>
                     NotificaÃ§Ãµes
@@ -2950,7 +2950,7 @@
                 type="button"
                 class="nav-button active"
                 data-tab="dashboard"
-                onclick="openTab(&#x27;dashboard&#x27;, this)"
+                onclick="openTab('dashboard', this)"
             >
                 <i class="fa-solid fa-chart-column"></i>
                 Dashboard
@@ -2960,7 +2960,7 @@
                 type="button"
                 class="nav-button"
                 data-tab="validation"
-                onclick="openTab(&#x27;validation&#x27;, this)"
+                onclick="openTab('validation', this)"
             >
                 <i class="fa-solid fa-lock"></i>
                 Nova Validação
@@ -2970,7 +2970,7 @@
                 type="button"
                 class="nav-button"
                 data-tab="history"
-                onclick="openTab(&#x27;history&#x27;, this)"
+                onclick="openTab('history', this)"
             >
                 <i class="fa-solid fa-clock-rotate-left"></i>
                 Histórico
@@ -2980,7 +2980,7 @@
                 type="button"
                 class="nav-button"
                 data-tab="alerts"
-                onclick="openTab(&#x27;alerts&#x27;, this)"
+                onclick="openTab('alerts', this)"
             >
                 <i class="fa-solid fa-bell"></i>
                 Alertas Operacionais
@@ -2990,7 +2990,7 @@
                 type="button"
                 class="nav-button"
                 data-tab="manual"
-                onclick="openTab(&#x27;manual&#x27;, this)"
+                onclick="openTab('manual', this)"
             >
                 <i class="fa-solid fa-book-open"></i>
                 Manual Operacional
@@ -3001,7 +3001,7 @@
                 class="nav-button"
                 id="adminNavigation"
                 data-tab="admin"
-                onclick="openTab(&#x27;admin&#x27;, this)"
+                onclick="openTab('admin', this)"
                 hidden
             >
                 <i class="fa-solid fa-gear"></i>
@@ -3123,7 +3123,7 @@
                         <button
                             type="button"
                             class="product-card amigoz"
-                            onclick="selectProduct(&#x27;AMIGOZ&#x27;)"
+                            onclick="selectProduct('AMIGOZ')"
                         >
                             <i class="fa-solid fa-handshake"></i>
 
@@ -4930,7 +4930,7 @@ Bloqueio definitivo:
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
-            .replace(/&#x27;/g, "&#039;");
+            .replace(/'/g, "&#039;");
     }
 
     function normalizeText(value) {
@@ -5145,7 +5145,7 @@ Bloqueio definitivo:
                                     <button
                                         type="button"
                                         class="btn btn-primary"
-                                        onclick="acknowledgeOperationalAlert(&#x27;${escapeText(alert.id)}&#x27;)"
+                                        onclick="acknowledgeOperationalAlert('${escapeText(alert.id)}')"
                                     >
                                         Registrar ciência
                                     </button>
@@ -5212,7 +5212,7 @@ Bloqueio definitivo:
                                         <button
                                             type="button"
                                             class="btn btn-secondary"
-                                            onclick="toggleOperationalAlert(&#x27;${escapeText(alert.id)}&#x27;, ${alert.active ? "false" : "true"})"
+                                            onclick="toggleOperationalAlert('${escapeText(alert.id)}', ${alert.active ? "false" : "true"})"
                                         >
                                             ${alert.active ? "Encerrar" : "Reativar"}
                                         </button>
@@ -6424,7 +6424,7 @@ Bloqueio definitivo:
             });
 
         select.innerHTML =
-            &#x27;<option value="">Selecione</option>&#x27;;
+            '<option value="">Selecione</option>';
 
         const groups = new Map();
 
@@ -7108,8 +7108,8 @@ Bloqueio definitivo:
                                                 type="button"
                                                 class="btn answer-correct"
                                                 onclick="answerQuestion(
-                                                    &#x27;${escapeText(question.id)}&#x27;,
-                                                    &#x27;correct&#x27;
+                                                    '${escapeText(question.id)}',
+                                                    'correct'
                                                 )"
                                                 ${
                                                     question.replaced
@@ -7124,8 +7124,8 @@ Bloqueio definitivo:
                                                 type="button"
                                                 class="btn answer-wrong"
                                                 onclick="answerQuestion(
-                                                    &#x27;${escapeText(question.id)}&#x27;,
-                                                    &#x27;wrong&#x27;
+                                                    '${escapeText(question.id)}',
+                                                    'wrong'
                                                 )"
                                                 ${
                                                     question.replaced
@@ -7140,7 +7140,7 @@ Bloqueio definitivo:
                                                 type="button"
                                                 class="btn answer-replace"
                                                 onclick="replaceQuestion(
-                                                    &#x27;${escapeText(question.id)}&#x27;
+                                                    '${escapeText(question.id)}'
                                                 )"
                                                 ${
                                                     question.replaced
@@ -7555,7 +7555,7 @@ Bloqueio definitivo:
                 <button
                     type="button"
                     class="btn btn-warning"
-                    onclick="resumeComplementPid(&#x27;SOFT&#x27;)"
+                    onclick="resumeComplementPid('SOFT')"
                 >
                     Complementar para SOFT
                 </button>
@@ -7563,7 +7563,7 @@ Bloqueio definitivo:
                 <button
                     type="button"
                     class="btn btn-danger"
-                    onclick="resumeComplementPid(&#x27;HARD&#x27;)"
+                    onclick="resumeComplementPid('HARD')"
                 >
                     Complementar para HARD
                 </button>
@@ -7575,7 +7575,7 @@ Bloqueio definitivo:
                 <button
                     type="button"
                     class="btn btn-danger"
-                    onclick="resumeComplementPid(&#x27;HARD&#x27;)"
+                    onclick="resumeComplementPid('HARD')"
                 >
                     Complementar para HARD
                 </button>
@@ -8508,7 +8508,7 @@ Bloqueio definitivo:
                                                         : ""
                                                 }"
                                                 onclick="openManualArticle(
-                                                    &#x27;${escapeText(reason.id)}&#x27;
+                                                    '${escapeText(reason.id)}'
                                                 )"
                                             >
                                                 <span>
@@ -8698,7 +8698,7 @@ Bloqueio definitivo:
                                     type="button"
                                     class="btn btn-secondary"
                                     onclick="changeUserPassword(
-                                        &#x27;${escapeText(user.id)}&#x27;
+                                        '${escapeText(user.id)}'
                                     )"
                                 >
                                     Senha
@@ -8708,7 +8708,7 @@ Bloqueio definitivo:
                                     type="button"
                                     class="btn btn-danger"
                                     onclick="toggleUserStatus(
-                                        &#x27;${escapeText(user.id)}&#x27;
+                                        '${escapeText(user.id)}'
                                     )"
                                 >
                                     ${user.active ? "Desativar" : "Ativar"}
@@ -9157,12 +9157,12 @@ Bloqueio definitivo:
             const nextCharacter =
                 text[index + 1];
 
-            if (character === &#x27;"&#x27;) {
+            if (character === '"') {
                 if (
                     inQuotes &&
-                    nextCharacter === &#x27;"&#x27;
+                    nextCharacter === '"'
                 ) {
-                    field += &#x27;"&#x27;;
+                    field += '"';
                     index += 1;
                 } else {
                     inQuotes = !inQuotes;
@@ -9691,7 +9691,7 @@ Bloqueio definitivo:
 
         return `"${text.replace(
             /"/g,
-            &#x27;""&#x27;
+            '""'
         )}"`;
     }
 
