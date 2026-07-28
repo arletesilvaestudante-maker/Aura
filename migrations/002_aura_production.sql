@@ -82,3 +82,4 @@ CREATE INDEX IF NOT EXISTS idx_aura_attendances_created ON aura_attendances(crea
 CREATE INDEX IF NOT EXISTS idx_aura_attendances_operator ON aura_attendances(operator_id);
 CREATE INDEX IF NOT EXISTS idx_aura_alerts_active ON aura_operational_alerts(active, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_aura_audit_created ON aura_audit_log(created_at DESC);
+
