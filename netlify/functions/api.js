@@ -189,12 +189,19 @@ async function handlerInternal(event) {
       "UPDATE aura_users SET password_hash = $1, must_change_password = FALSE, updated_at = NOW() WHERE id = $2",
       [hash, user.id]
     );
-    await pool.query("DELETE FROM aura_sessions WHERE user_id = $1", [user.id]);
+    const currentToken = cookies(event)[COOKIE];
+    await pool.query(
+      "DELETE FROM aura_sessions WHERE user_id = $1 AND token_hash <> $2",
+      [user.id, tokenHash(currentToken)]
+    );
     await audit(user, "auth.password_changed", "user", user.id);
     return response(200, { success: true });
   }
 
   requireRole(user, ["operador", "admin", "master"]);
+  if (user.must_change_password) {
+    return response(403, { error: "Troque a senha temporária antes de continuar.", mustChangePassword: true });
+  }
 
   if (method === "GET" && path === "/pid/bootstrap") {
     const reasons = await pool.query(
@@ -213,7 +220,8 @@ async function handlerInternal(event) {
         ORDER BY created_at DESC LIMIT $1`,
       [limit]
     );
-    return response(200, { attendances: result.rows.map((row) => ({ ...row.payload, ...row })) });
+    const records = result.rows.map((row) => ({ ...row.payload, ...row }));
+    return response(200, { records, attendances: records });
   }
 
   if (method === "POST" && path === "/pid/attendances") {
@@ -329,11 +337,23 @@ async function handlerInternal(event) {
     requireRole(user, ["admin", "master"]);
     const body = parseBody(event);
     const severity = ["informativo", "atencao", "critico"].includes(body.severity) ? body.severity : "informativo";
+    let imageUrl = body.imageUrl ? cleanText(body.imageUrl, 1_500_000) : null;
+    if (!imageUrl && body.imageBase64) {
+      const contentType = cleanText(body.imageContentType, 80, true).toLowerCase();
+      if (!["image/png", "image/jpeg", "image/webp", "image/gif"].includes(contentType)) {
+        return response(400, { error: "Formato de imagem não permitido." });
+      }
+      const base64 = String(body.imageBase64).replace(/^data:[^;]+;base64,/, "");
+      if (!/^[A-Za-z0-9+/=]+$/.test(base64) || base64.length > 1_400_000) {
+        return response(400, { error: "Imagem inválida ou acima do limite permitido." });
+      }
+      imageUrl = `data:${contentType};base64,${base64}`;
+    }
     const result = await pool.query(
       `INSERT INTO aura_operational_alerts (title,message,severity,image_url,created_by)
        VALUES ($1,$2,$3,$4,$5) RETURNING id`,
       [cleanText(body.title, 180, true), cleanText(body.message, 10000, true), severity,
-       body.imageUrl ? cleanText(body.imageUrl, 200000) : null, user.id]
+       imageUrl, user.id]
     );
     await audit(user, "alert.created", "alert", result.rows[0].id);
     return response(201, { success: true, id: result.rows[0].id });
@@ -385,4 +405,3 @@ export async function handler(event) {
     return response(statusCode, { error: statusCode >= 500 ? "Erro interno da aplicação." : error.message });
   }
 }
-
