@@ -385,3 +385,4 @@ export async function handler(event) {
     return response(statusCode, { error: statusCode >= 500 ? "Erro interno da aplicação." : error.message });
   }
 }
+
