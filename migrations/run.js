@@ -25,6 +25,19 @@ try {
     )
   `);
 
+  const legacySchema = await client.query(`
+    SELECT to_regclass('public.users') IS NOT NULL
+       AND to_regclass('public.ai_interactions') IS NOT NULL
+       AND to_regclass('public.generated_content') IS NOT NULL AS initialized
+  `);
+  if (legacySchema.rows[0]?.initialized) {
+    await client.query(
+      `INSERT INTO aura_schema_migrations (filename)
+       VALUES ('001_init_schema.sql')
+       ON CONFLICT (filename) DO NOTHING`
+    );
+  }
+
   const applied = new Set(
     (await client.query("SELECT filename FROM aura_schema_migrations")).rows.map(
       (row) => row.filename
