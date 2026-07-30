@@ -5781,7 +5781,7 @@ Bloqueio definitivo:
                     : "Operador";
 
         byId("adminNavigation").hidden =
-            currentUser.role !== "admin";
+            !isLeadership();
 
         byId("loginScreen").hidden = true;
 
@@ -6017,7 +6017,7 @@ Bloqueio definitivo:
     function openTab(tabName, sourceButton = null) {
         if (
             tabName === "admin" &&
-            currentUser?.role !== "admin"
+            !isLeadership()
         ) {
             showToast(
                 "A área de Administração é exclusiva para administradores."
@@ -8658,7 +8658,7 @@ Bloqueio definitivo:
             return;
         }
 
-        if (currentUser?.role === "admin") {
+        if (isLeadership()) {
             try { adminUsers = (await apiRequest("/api/admin/users")).users || []; }
             catch (error) { body.innerHTML = `<tr><td colspan="4">${escapeText(error.message)}</td></tr>`; return; }
         }
