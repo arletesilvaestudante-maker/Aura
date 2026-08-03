@@ -1534,7 +1534,9 @@
         }
 
         .operational-alert-modal {
-            width: min(640px, calc(100% - 28px));
+            width: min(920px, calc(100% - 28px));
+            max-height: calc(100vh - 44px);
+            overflow-y: auto;
             padding: 28px;
             border-radius: 24px;
             background: #ffffff;
@@ -1546,8 +1548,32 @@
         }
 
         #alertImagePreview {
-            max-width: 320px;
+            max-width: 100%;
             margin-top: 8px;
+        }
+
+        .recontact-alert {
+            grid-column: 1 / -1;
+            padding: 14px 16px;
+            border: 1px solid #f59e0b;
+            border-left: 6px solid #dc2626;
+            border-radius: 12px;
+            background: #fff7ed;
+            color: #9a3412;
+            line-height: 1.55;
+        }
+
+        .history-detail-list {
+            display: grid;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .history-detail-item {
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: #f8fafc;
         }
 
         .rules-box {
@@ -2068,9 +2094,10 @@
 
         .pine-preview {
             width: 100%;
-            max-height: 230px;
+            height: auto;
+            max-height: none;
             margin-top: 12px;
-            object-fit: cover;
+            object-fit: contain;
             border: 1px solid var(--border);
             border-radius: 10px;
         }
@@ -2183,8 +2210,10 @@
 
         .pine-modal-image {
             width: 100%;
-            max-height: 500px;
-            object-fit: cover;
+            height: auto;
+            max-height: calc(100vh - 220px);
+            object-fit: contain;
+            background: #f8fafc;
             border-radius: 14px;
         }
 
@@ -3374,6 +3403,13 @@
                                 placeholder="Registre informações relevantes."
                             ></textarea>
                         </div>
+
+                        <div
+                            class="recontact-alert"
+                            id="customerRecontactAlert"
+                            role="alert"
+                            hidden
+                        ></div>
                     </div>
 
                     <div
@@ -3798,6 +3834,7 @@
                                 <th>Status</th>
                                 <th>Satisfação</th>
                                 <th>Operador</th>
+                                <th>Confirmações</th>
                             </tr>
                         </thead>
 
@@ -4586,6 +4623,19 @@
     id="toast"
 ></div>
 
+<div class="modal-overlay" id="historyDetailsOverlay">
+    <div class="aura-modal modal-position" style="width:min(760px,100%)">
+        <button type="button" class="modal-close" onclick="closeHistoryDetails()" aria-label="Fechar">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+        <div class="pine-modal-header">
+            <h2>Confirmações da ligação</h2>
+            <p id="historyDetailsSubtitle" style="margin-top:5px;color:#64748b"></p>
+        </div>
+        <div class="pine-modal-body" id="historyDetailsBody"></div>
+    </div>
+</div>
+
 <script>
     "use strict";
 
@@ -4618,6 +4668,10 @@
         {
             label: "SICLO",
             url: "https://www.distribuicaoalfa.com.br/modulocliente/logout.php"
+        },
+        {
+            label: "NUVIDIO",
+            url: "https://empresa.nuvidio.com/login"
         }
     ]);
 
@@ -4861,6 +4915,9 @@ Bloqueio definitivo:
     let operationalAlertReport = [];
     let operationalAlertAcknowledgements = [];
     let selectedAlertImageData = null;
+    let recontactLookupTimer = null;
+    let lastRecontactCpf = "";
+    let processImagesCache = null;
 
     let flow = createEmptyFlow();
 
@@ -5892,9 +5949,16 @@ Bloqueio definitivo:
     async function loadAttendanceHistory() {
         try {
             const result = await apiRequest("/api/pid/attendances?limit=500");
+            const records = (Array.isArray(result.records) ? result.records : [])
+                .map((record) => ({
+                    ...record,
+                    date: record.date || record.completedAt || record.createdAt,
+                    code: record.code || record.protocol,
+                    operator: record.operator || record.operatorName || "—"
+                }));
             writeStorage(
                 STORAGE_KEYS.records,
-                Array.isArray(result.records) ? result.records : []
+                records
             );
             renderHistory();
             updateDashboard();
@@ -6102,6 +6166,8 @@ Bloqueio definitivo:
 
     function resetValidationForm() {
         clearTimeout(autoPidTimer);
+        clearTimeout(recontactLookupTimer);
+        lastRecontactCpf = "";
 
         flow = createEmptyFlow();
 
@@ -6124,6 +6190,8 @@ Bloqueio definitivo:
         byId("reasonInformation").hidden = true;
         byId("operationalArticlePreview").hidden = true;
         byId("mandatoryPidMessage").hidden = true;
+        byId("customerRecontactAlert").hidden = true;
+        byId("customerRecontactAlert").textContent = "";
 
         byId("customerServiceCard").hidden = false;
         byId("validatedServiceScreen").hidden = true;
@@ -6189,30 +6257,48 @@ Bloqueio definitivo:
         selectProduct("AMIGOZ");
     }
 
-    function loadPineImage() {
-        const imageData =
-            localStorage.getItem(STORAGE_KEYS.pineImage) ||
-            "/pine-em-desenvolvimento.jpg";
+    async function loadProcessImages(force = false) {
+        if (processImagesCache && !force) return processImagesCache;
+        try {
+            const result = await apiRequest("/api/settings/process-images");
+            processImagesCache = result.images || {};
+        } catch (error) {
+            console.error("Não foi possível carregar as imagens dos processos.", error);
+            processImagesCache = {};
+        }
+        return processImagesCache;
+    }
+
+    function applyProcessImage(imageData, modalImage, placeholder, adminPreview) {
+        const showPlaceholder = () => {
+            modalImage.removeAttribute("src");
+            modalImage.hidden = true;
+            placeholder.hidden = false;
+            adminPreview.removeAttribute("src");
+            adminPreview.hidden = true;
+        };
+        if (!imageData) {
+            showPlaceholder();
+            return;
+        }
+        modalImage.onerror = showPlaceholder;
+        adminPreview.onerror = () => { adminPreview.hidden = true; };
+        modalImage.src = imageData;
+        modalImage.hidden = false;
+        placeholder.hidden = true;
+        adminPreview.src = imageData;
+        adminPreview.hidden = false;
+    }
+
+    async function loadPineImage(force = false) {
+        const images = await loadProcessImages(force);
+        const imageData = images.pine_image || localStorage.getItem(STORAGE_KEYS.pineImage);
 
         const modalImage = byId("pineModalImage");
         const placeholder = byId("pinePlaceholder");
         const adminPreview = byId("pineAdminPreview");
 
-        if (imageData) {
-            modalImage.src = imageData;
-            modalImage.hidden = false;
-            placeholder.hidden = true;
-
-            adminPreview.src = imageData;
-            adminPreview.hidden = false;
-        } else {
-            modalImage.removeAttribute("src");
-            modalImage.hidden = true;
-            placeholder.hidden = false;
-
-            adminPreview.removeAttribute("src");
-            adminPreview.hidden = true;
-        }
+        applyProcessImage(imageData, modalImage, placeholder, adminPreview);
     }
 
     function uploadPineImage(event) {
@@ -6230,14 +6316,14 @@ Bloqueio definitivo:
 
         const reader = new FileReader();
 
-        reader.onload = () => {
+        reader.onload = async () => {
             try {
-                localStorage.setItem(
-                    STORAGE_KEYS.pineImage,
-                    String(reader.result)
-                );
-
-                loadPineImage();
+                await apiRequest("/api/admin/settings/process-images", {
+                    method: "PUT",
+                    body: JSON.stringify({ type: "pine", imageData: String(reader.result) })
+                });
+                processImagesCache = null;
+                await loadPineImage(true);
                 showToast("Imagem do Pine salva com sucesso.");
             } catch (error) {
                 console.error(error);
@@ -6256,36 +6342,26 @@ Bloqueio definitivo:
         event.target.value = "";
     }
 
-    function removePineImage() {
+    async function removePineImage() {
         localStorage.removeItem(STORAGE_KEYS.pineImage);
-        loadPineImage();
+        await apiRequest("/api/admin/settings/process-images", {
+            method: "PUT",
+            body: JSON.stringify({ type: "pine", imageData: "" })
+        });
+        processImagesCache = null;
+        await loadPineImage(true);
         showToast("Imagem oficial do Pine restaurada.");
     }
 
-    function loadOuvidoriaImage() {
-        const imageData =
-            localStorage.getItem(STORAGE_KEYS.ouvidoriaImage) ||
-            "/ouvidoria-em-desenvolvimento.png";
+    async function loadOuvidoriaImage(force = false) {
+        const images = await loadProcessImages(force);
+        const imageData = images.ouvidoria_image || localStorage.getItem(STORAGE_KEYS.ouvidoriaImage);
 
         const modalImage = byId("ouvidoriaModalImage");
         const placeholder = byId("ouvidoriaPlaceholder");
         const adminPreview = byId("ouvidoriaAdminPreview");
 
-        if (imageData) {
-            modalImage.src = imageData;
-            modalImage.hidden = false;
-            placeholder.hidden = true;
-
-            adminPreview.src = imageData;
-            adminPreview.hidden = false;
-        } else {
-            modalImage.removeAttribute("src");
-            modalImage.hidden = true;
-            placeholder.hidden = false;
-
-            adminPreview.removeAttribute("src");
-            adminPreview.hidden = true;
-        }
+        applyProcessImage(imageData, modalImage, placeholder, adminPreview);
     }
 
     function uploadOuvidoriaImage(event) {
@@ -6303,14 +6379,14 @@ Bloqueio definitivo:
 
         const reader = new FileReader();
 
-        reader.onload = () => {
+        reader.onload = async () => {
             try {
-                localStorage.setItem(
-                    STORAGE_KEYS.ouvidoriaImage,
-                    String(reader.result)
-                );
-
-                loadOuvidoriaImage();
+                await apiRequest("/api/admin/settings/process-images", {
+                    method: "PUT",
+                    body: JSON.stringify({ type: "ouvidoria", imageData: String(reader.result) })
+                });
+                processImagesCache = null;
+                await loadOuvidoriaImage(true);
                 showToast("Imagem da Ouvidoria salva com sucesso.");
             } catch (error) {
                 console.error(error);
@@ -6328,9 +6404,14 @@ Bloqueio definitivo:
         event.target.value = "";
     }
 
-    function removeOuvidoriaImage() {
+    async function removeOuvidoriaImage() {
         localStorage.removeItem(STORAGE_KEYS.ouvidoriaImage);
-        loadOuvidoriaImage();
+        await apiRequest("/api/admin/settings/process-images", {
+            method: "PUT",
+            body: JSON.stringify({ type: "ouvidoria", imageData: "" })
+        });
+        processImagesCache = null;
+        await loadOuvidoriaImage(true);
         showToast("Imagem oficial da Ouvidoria restaurada.");
     }
 
@@ -6574,8 +6655,48 @@ Bloqueio definitivo:
     }
 
     function customerFieldChanged() {
+        scheduleRecontactLookup();
         if (flow.phoneValid === false) {
             tryAutoStartMandatoryPid();
+        }
+    }
+
+    function scheduleRecontactLookup() {
+        clearTimeout(recontactLookupTimer);
+        const cpf = digitsOnly(byId("customerCpf")?.value || "");
+        const alert = byId("customerRecontactAlert");
+        if (!alert) return;
+        if (cpf.length !== 11) {
+            lastRecontactCpf = "";
+            alert.hidden = true;
+            alert.textContent = "";
+            return;
+        }
+        recontactLookupTimer = setTimeout(() => lookupCustomerRecontacts(cpf), 350);
+    }
+
+    async function lookupCustomerRecontacts(cpf) {
+        const alert = byId("customerRecontactAlert");
+        if (!alert || digitsOnly(byId("customerCpf")?.value || "") !== cpf) return;
+        try {
+            const result = await apiRequest(`/api/pid/recontacts?cpf=${encodeURIComponent(cpf)}`);
+            lastRecontactCpf = cpf;
+            const week = Number(result.last7Days) || 0;
+            if (!week) {
+                alert.hidden = true;
+                alert.textContent = "";
+                return;
+            }
+            alert.innerHTML = `
+                <strong><i class="fa-solid fa-triangle-exclamation"></i> Este cliente já nos acionou.</strong><br>
+                Últimas 24 horas: <strong>${Number(result.last24Hours) || 0}</strong> vez(es) ·
+                Últimas 72 horas: <strong>${Number(result.last72Hours) || 0}</strong> vez(es) ·
+                Última semana: <strong>${week}</strong> vez(es).
+            `;
+            alert.hidden = false;
+        } catch (error) {
+            console.error("Não foi possível consultar a reincidência do CPF.", error);
+            alert.hidden = true;
         }
     }
 
@@ -8052,6 +8173,9 @@ Bloqueio definitivo:
                     phone: flow.resultDraft.phone,
                     product: flow.resultDraft.product,
                     reasonId: flow.resultDraft.reasonId,
+                    reason: flow.resultDraft.reason,
+                    motivo: flow.resultDraft.motivo,
+                    justification: flow.resultDraft.justification,
                     phoneStatus: flow.resultDraft.phoneStatus,
                     phoneSystem: flow.resultDraft.phoneSystem,
                     level: flow.resultDraft.level,
@@ -8059,6 +8183,8 @@ Bloqueio definitivo:
                     nuvidio: flow.resultDraft.nuvidio,
                     complemented: flow.resultDraft.complemented,
                     notes: flow.resultDraft.notes,
+                    operator: flow.resultDraft.operator,
+                    operatorLogin: flow.resultDraft.operatorLogin,
                     satisfaction,
                     answers: flow.pidQuestions.map((question) => ({
                         id: question.id,
@@ -8276,7 +8402,7 @@ Bloqueio definitivo:
             body.innerHTML = `
                 <tr>
                     <td
-                        colspan="10"
+                        colspan="11"
                         style="
                             text-align:center;
                             color:#64748b
@@ -8351,6 +8477,17 @@ Bloqueio definitivo:
                         <td>
                             ${escapeText(record.operator)}
                         </td>
+
+                        <td>
+                            <button
+                                type="button"
+                                class="btn btn-secondary"
+                                onclick="openHistoryDetails('${escapeText(record.id || record.code)}')"
+                            >
+                                <i class="fa-solid fa-list-check"></i>
+                                Visualizar
+                            </button>
+                        </td>
                     </tr>
                 `;
             })
@@ -8390,9 +8527,50 @@ Bloqueio definitivo:
                     : "NÃO",
             Operador:
                 record.operator,
+            Login_Operador:
+                record.operatorLogin,
+            Confirmacoes:
+                (record.answers || []).map((answer) =>
+                    `${answer.text}: ${answer.status === "correct" ? "CONFIRMADO" : answer.status === "wrong" ? "NÃO CONFIRMADO" : "SEM RESPOSTA"}`
+                ).join(" | "),
             Observacoes:
                 record.notes
         }));
+    }
+
+    function openHistoryDetails(recordId) {
+        const record = readStorage(STORAGE_KEYS.records, [])
+            .find((item) => String(item.id || item.code) === String(recordId));
+        if (!record) {
+            showToast("Registro não encontrado.");
+            return;
+        }
+        byId("historyDetailsSubtitle").textContent =
+            `${record.code || "—"} · ${record.customerName || "Cliente"} · Operador: ${record.operator || "—"}`;
+        const answers = Array.isArray(record.answers) ? record.answers.filter((answer) => !answer.replaced) : [];
+        byId("historyDetailsBody").innerHTML = `
+            <div class="summary">
+                <span>Operador: <strong>${escapeText(record.operator || "—")}</strong></span>
+                <span>Login: <strong>${escapeText(record.operatorLogin || "—")}</strong></span>
+                <span>Status: <strong>${escapeText(record.status || "—")}</strong></span>
+            </div>
+            <div class="history-detail-list">
+                ${answers.length ? answers.map((answer) => `
+                    <div class="history-detail-item">
+                        <strong>${escapeText(answer.text || "Confirmação")}</strong><br>
+                        <span class="status ${answer.status === "correct" ? "approved" : answer.status === "wrong" ? "denied" : "phone"}">
+                            ${answer.status === "correct" ? "Confirmado" : answer.status === "wrong" ? "Não confirmado" : "Sem resposta"}
+                        </span>
+                    </div>
+                `).join("") : `<div class="information-box">Este atendimento não exigiu perguntas de confirmação ou pertence a um registro anterior sem o detalhamento salvo.</div>`}
+            </div>
+            ${record.notes ? `<div class="information-box" style="margin-top:16px"><strong>Observações:</strong><br>${escapeText(record.notes)}</div>` : ""}
+        `;
+        setModalState(byId("historyDetailsOverlay"), true);
+    }
+
+    function closeHistoryDetails() {
+        setModalState(byId("historyDetailsOverlay"), false);
     }
 
     function exportHistoryCsv() {
