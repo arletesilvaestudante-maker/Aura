@@ -1547,9 +1547,29 @@
             background: linear-gradient(135deg, #f59e0b, #f97316);
         }
 
-        #alertImagePreview {
+        #alertImagePreview,
+        #operationalAlertInlineImage {
+            display: block;
+            width: auto;
             max-width: 100%;
-            margin-top: 8px;
+            height: auto;
+            max-height: none;
+            margin: 16px auto 0;
+            object-fit: contain;
+        }
+
+        .pine-modal-body {
+            overflow: visible;
+        }
+
+        .pine-modal-image {
+            display: block;
+            width: auto;
+            max-width: 100%;
+            height: auto;
+            max-height: none;
+            margin: 0 auto;
+            object-fit: contain;
         }
 
         .recontact-alert {
@@ -5954,7 +5974,21 @@ Bloqueio definitivo:
                     ...record,
                     date: record.date || record.completedAt || record.createdAt,
                     code: record.code || record.protocol,
-                    operator: record.operator || record.operatorName || "—"
+                    operator:
+                        record.operator ||
+                        record.operatorName ||
+                        record.payload?.operator ||
+                        "—",
+                    operatorLogin:
+                        record.operatorLogin ||
+                        record.payload?.operatorLogin ||
+                        "—",
+                    answers:
+                        Array.isArray(record.answers)
+                            ? record.answers
+                            : Array.isArray(record.confirmations)
+                                ? record.confirmations
+                                : []
                 }));
             writeStorage(
                 STORAGE_KEYS.records,
@@ -7662,6 +7696,15 @@ Bloqueio definitivo:
                 Boolean(flow.complemented),
             notes:
                 byId("serviceNotes").value.trim(),
+            answers:
+                flow.pidQuestions.map((question) => ({
+                    id: question.id,
+                    catalogId: question.catalogId,
+                    text: question.text,
+                    type: question.type,
+                    status: question.status,
+                    replaced: question.replaced
+                })),
             saved: false
         };
     }
@@ -8186,20 +8229,25 @@ Bloqueio definitivo:
                     operator: flow.resultDraft.operator,
                     operatorLogin: flow.resultDraft.operatorLogin,
                     satisfaction,
-                    answers: flow.pidQuestions.map((question) => ({
-                        id: question.id,
-                        catalogId: question.catalogId,
-                        text: question.text,
-                        type: question.type,
-                        status: question.status,
-                        replaced: question.replaced
-                    }))
+                    answers: flow.resultDraft.answers
                 })
             });
 
             flow.resultDraft = {
                 ...flow.resultDraft,
-                ...result.record,
+                ...(result.attendance || result.record || {}),
+                operator:
+                    flow.resultDraft.operator ||
+                    currentUser?.name ||
+                    "—",
+                operatorLogin:
+                    flow.resultDraft.operatorLogin ||
+                    currentUser?.login ||
+                    "—",
+                answers:
+                    Array.isArray(flow.resultDraft.answers)
+                        ? flow.resultDraft.answers
+                        : [],
                 saved: true,
                 saving: false
             };
