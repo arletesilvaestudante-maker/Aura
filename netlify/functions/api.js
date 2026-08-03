@@ -281,7 +281,20 @@ async function handlerInternal(event) {
       [protocol, user.id, product, body.reasonId || null, cleanText(body.customerName || body.name, 180), cpf, phone, body]
     );
     await audit(user, "attendance.created", "attendance", result.rows[0].id, { protocol, product });
-    return response(201, { success: true, attendance: result.rows[0] });
+    const attendance = result.rows[0];
+    const record = {
+      ...body,
+      ...attendance,
+      id: attendance.id,
+      code: protocol,
+      protocol,
+      date: body.completedAt || attendance.createdAt,
+      createdAt: attendance.createdAt,
+      operator: user.name,
+      operatorLogin: user.login,
+      answers: Array.isArray(body.answers) ? body.answers : []
+    };
+    return response(201, { success: true, attendance, record });
   }
 
   if (path === "/admin/users" && method === "GET") {
@@ -398,8 +411,8 @@ async function handlerInternal(event) {
     if (value && !/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(value)) {
       return response(400, { error: "Formato de imagem inválido." });
     }
-    if (value.length > 1_500_000) {
-      return response(400, { error: "Imagem acima do limite permitido." });
+    if (value.length > 4_000_000) {
+      return response(400, { error: "Imagem acima de 3 MB. Reduza o arquivo e tente novamente." });
     }
     if (value) {
       await pool.query(
