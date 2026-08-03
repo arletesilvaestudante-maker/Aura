@@ -127,8 +127,33 @@ async function ensureBootstrapAdmin() {
   );
 }
 
+let runtimeEnhancementsPromise;
+async function ensureRuntimeEnhancements() {
+  if (!runtimeEnhancementsPromise) {
+    runtimeEnhancementsPromise = (async () => {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS aura_app_settings (
+          setting_key VARCHAR(100) PRIMARY KEY,
+          setting_value TEXT NOT NULL DEFAULT '',
+          updated_by UUID REFERENCES aura_users(id) ON DELETE SET NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_aura_attendances_cpf_created
+          ON aura_attendances(customer_cpf, created_at DESC)
+      `);
+    })().catch((error) => {
+      runtimeEnhancementsPromise = null;
+      throw error;
+    });
+  }
+  return runtimeEnhancementsPromise;
+}
+
 async function handlerInternal(event) {
   if (!pool) return response(503, { error: "Banco de dados não configurado." });
+  await ensureRuntimeEnhancements();
   await ensureBootstrapAdmin();
   const method = event.httpMethod;
   const path = routePath(event);
