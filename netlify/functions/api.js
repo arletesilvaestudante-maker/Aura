@@ -215,13 +215,32 @@ async function handlerInternal(event) {
   if (method === "GET" && path === "/pid/attendances") {
     const limit = Math.min(Number(event.queryStringParameters?.limit) || 200, 500);
     const result = await pool.query(
-      `SELECT id, protocol, product, reason_id AS "reasonId", payload, created_at AS "createdAt"
-         FROM aura_attendances
-        ORDER BY created_at DESC LIMIT $1`,
+      `SELECT a.id, a.protocol, a.product, a.reason_id AS "reasonId", a.payload,
+              a.created_at AS "createdAt", u.name AS operator,
+              u.login AS "operatorLogin"
+         FROM aura_attendances a
+         JOIN aura_users u ON u.id = a.operator_id
+        ORDER BY a.created_at DESC LIMIT $1`,
       [limit]
     );
     const records = result.rows.map((row) => ({ ...row.payload, ...row }));
     return response(200, { records, attendances: records });
+  }
+
+  if (method === "GET" && path === "/pid/recontacts") {
+    const cpf = String(event.queryStringParameters?.cpf || "").replace(/\D/g, "").slice(0, 11);
+    if (cpf.length !== 11) return response(400, { error: "Informe um CPF válido." });
+    const result = await pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours')::int AS "last24Hours",
+         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '72 hours')::int AS "last72Hours",
+         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::int AS "last7Days",
+         MAX(created_at) AS "lastContactAt"
+       FROM aura_attendances
+       WHERE customer_cpf = $1`,
+      [cpf]
+    );
+    return response(200, { cpf, ...result.rows[0] });
   }
 
   if (method === "POST" && path === "/pid/attendances") {
@@ -331,6 +350,45 @@ async function handlerInternal(event) {
       [user.id, activeOnly]
     );
     return response(200, { alerts: result.rows });
+  }
+
+  if (path === "/settings/process-images" && method === "GET") {
+    const result = await pool.query(
+      `SELECT setting_key AS key, setting_value AS value
+         FROM aura_app_settings
+        WHERE setting_key IN ('pine_image', 'ouvidoria_image')`
+    );
+    return response(200, {
+      images: Object.fromEntries(result.rows.map((row) => [row.key, row.value]))
+    });
+  }
+
+  if (path === "/admin/settings/process-images" && method === "PUT") {
+    requireRole(user, ["admin", "master"]);
+    const body = parseBody(event);
+    const key = body.type === "pine" ? "pine_image"
+      : body.type === "ouvidoria" ? "ouvidoria_image" : null;
+    if (!key) return response(400, { error: "Tipo de imagem inválido." });
+    const value = String(body.imageData || "");
+    if (value && !/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(value)) {
+      return response(400, { error: "Formato de imagem inválido." });
+    }
+    if (value.length > 1_500_000) {
+      return response(400, { error: "Imagem acima do limite permitido." });
+    }
+    if (value) {
+      await pool.query(
+        `INSERT INTO aura_app_settings (setting_key, setting_value, updated_by)
+         VALUES ($1,$2,$3)
+         ON CONFLICT (setting_key) DO UPDATE
+           SET setting_value=EXCLUDED.setting_value, updated_by=EXCLUDED.updated_by, updated_at=NOW()`,
+        [key, value, user.id]
+      );
+    } else {
+      await pool.query("DELETE FROM aura_app_settings WHERE setting_key=$1", [key]);
+    }
+    await audit(user, "settings.process_image_updated", "setting", key);
+    return response(200, { success: true });
   }
 
   if (path === "/operational-alerts" && method === "POST") {
